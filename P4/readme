@@ -1,0 +1,6 @@
+pthread_create crea un thread con una start routine y un argumento para esa rutina
+termina si llama a pthread xit, si devuelve de la start rtunie, si se cancel con pthread cancel
+So alguno de lo hilos en el proceso usa exit o el main hace un return se termoinan todos los threads
+El attr es una strutucar para crear parametros, se puede poner null para poner por deffecto
+el primer parametro de la uncion es un puntero, si la ejecicion tinenexito en ese pntero se guarda el id del thread
+Si tinee exito pthread cerate devuelve 0 si no un error numbre
