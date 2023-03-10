@@ -17,7 +17,7 @@ void *start_routine(int *i)
         sem_wait(&leer[(int)i]);
 
         printf("[Lector %i] -> Intentando leer...\n", (int)i);
-        // esperamos a que hay sitio
+        // esperamos a que haya sitio
         sem_wait(&global);
 
         printf("[Lector %i] -> Leyendo...\n", (int)i);
