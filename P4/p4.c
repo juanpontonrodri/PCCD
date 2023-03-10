@@ -35,23 +35,24 @@ int main(int argc, char *argv[])
 
     int N1 = atoi(argv[1]);
     int N2 = atoi(argv[2]);
-    // creao los adresses de los hilos para cada lector
-    pthread_t hilo[N1];
     // arranco el semaforo global con valor maximo el numeor de lectores simultaneos
     sem_init(&global, 0, N2);
+    // creao los adresses de los hilos para cada lector
+    pthread_t hilo[N1];
+
     // inciializo los hilos
     for (int i = 0; i < N1; i++)
     {
-        if (pthread_create(&hilo[i], NULL, (void *)start_routine, (void *)i + 1) != 0)
-        {
-            printf("error");
-            exit(-3);
+        if (pthread_create(&hilo[i], NULL, (void *)start_routine, (void *)i + 1) == 0)
+        { // inicio semaforos con valor inical 0( y el segunod argumento signiifca q se comparte entre hilos)
+            sem_init(&leer[i], 0, 0);
+            sem_init(&salir[i], 0, 0);
         }
         else
         {
-            // inicio semaforos con valor inical 0( y el segunod argumento signiifca q se comparte entre hilos)
-            sem_init(&leer[i], 0, 0);
-            sem_init(&salir[i], 0, 0);
+
+            printf("error");
+            exit(-3);
         }
     }
 
@@ -78,6 +79,7 @@ int main(int argc, char *argv[])
             sem_post(&salir[numero_lector]);
             break;
         case 3:
+            printf("saliendo\n");
             return 0;
         }
     }

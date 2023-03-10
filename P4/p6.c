@@ -4,98 +4,82 @@
 #include <unistd.h>
 #include <semaphore.h>
 
-sem_t global, EscStart[20], EscStop[20], LecStart[20], LecStop[20], lim_Esc, lim_Lect, variable;
+sem_t global, EscStart[20], EscStop[20], LecStart[20], LecStop[20], lim_Esc, lim_Lect, variable, esc_quiere;
 
 int N1, N2, N3;
 int lectores = 0;
-int quiere = 0, escribiendo = 0;
+int esc_pend = 0;
 
 void routine_escritor(int *param)
 {
-    int id = *param;
-    int impr = 0;
 
     while (1)
     {
-        if (impr == 0)
-        {
-            printf("[Escritor %d] Esperando a intentar escribir...\n", id + 1);
-            impr = 1;
-        }
-        sem_wait(&EscStart[id]);
-        quiere++;
-        printf("[Escritor %d]Intentando escribir... \n", id + 1);
+
+        printf("[Escritor %d] Esperando a intentar escribir...\n", *param + 1);
+
+        sem_wait(&EscStart[*param]);
+
+        esc_pend++;
+
+        printf("[Escritor %d]Intentando escribir... \n", *param + 1);
         sem_wait(&lim_Esc);
-        sem_wait(&global);
+        sem_wait(&lim_Lect);
 
-        quiere--;
+        esc_pend--;
 
-        printf("[Escritor %d]Escribiendo ... \n", id + 1);
-        sem_wait(&EscStop[id]);
-        printf("[Escritor %d]Fin escritura \n", id + 1);
+        printf("[Escritor %d]Escribiendo ... \n", *param + 1);
+        sem_wait(&EscStop[*param]);
+        printf("[Escritor %d]Fin escritura \n", *param + 1);
 
-        impr = 0;
-
-        sem_post(&global);
+        sem_post(&lim_Lect);
         sem_post(&lim_Esc);
     }
 }
 
-void routine_lector(int *num)
+void routine_lector(int *param)
 {
-    int id = *num;
-    int impr;
 
     while (1)
     {
 
-        if (impr == 0)
+        printf("[Lector %d] Esperando a intentar leer...\n", *param + 1);
+
+        sem_wait(&LecStart[*param]);
+        printf("[Lector %d]Intentando leer...\n", *param + 1);
+
+        if (esc_pend != 0)
         {
-            printf("[Lector %d] Esperando a intentar leer...\n", id + 1);
-            impr = 1;
-        }
-        sem_wait(&LecStart[id]);
-        printf("[Lector %d]Intentando leer...\n", id + 1);
-        sem_wait(&variable);
-        lectores++;
-        if (lectores == 1)
-        {
-            sem_wait(&lim_Esc);
-            sem_wait(&global);
-            if (quiere != 0)
-            {
-                sem_post(&lim_Esc);
-                while (quiere != 0)
+            sem_wait(&lim_Esc);  // comprobamos si hay sitio para un escritor
+            sem_wait(&lim_Lect); // si hay sitio para otra persona
+            if (esc_pend != 0)
+            {                         // si despues de saber que hay sitio sigue habiendo escriotres pendientes
+                sem_post(&lim_Esc);   // habilitamos al escritor para q entre
+                sem_post(&lim_Lect);  // habilitamos al lector para q entre
+                while (esc_pend != 0) // mientras siga habiendo escriotres pendientes
                 {
-                    sem_post(&global);
-                    sem_wait(&global);
+                    sem_post(&lim_Esc);
+                    sem_wait(&lim_Esc);
                 }
-                sem_wait(&lim_Esc);
+                printf("fuera while\n");
+                break;
+                printf("fuera while2\n");
             }
-            sem_post(&global);
-            sem_post(&variable);
+            else
+            {
+                printf("dentro del else\n");
+
+                sem_post(&lim_Esc);
+                sem_post(&lim_Lect);
+            }
         }
-        else
-        {
-            sem_post(&variable);
-        }
+
         sem_wait(&lim_Lect);
-        printf("[Lector %d]Leyendo ...\n", id + 1);
-        sem_wait(&LecStop[id]);
-        printf("[Lector %d]Fin lectura \n", id + 1);
-        impr = 0;
+        printf("[Lector %d]Leyendo ...\n", *param + 1);
+        sem_wait(&LecStop[*param]);
+        printf("[Lector %d]Fin lectura \n", *param + 1);
+
         sem_post(&lim_Lect);
-        sem_wait(&variable);
-        lectores--;
-        if (lectores == 0)
-        {
-            sem_post(&lim_Esc);
-            sem_post(&variable);
-        }
-        else
-        {
-            sem_post(&variable);
-        }
     }
 }
 
@@ -105,6 +89,13 @@ int main(int argc, char *argv[])
     N1 = atoi(argv[1]);
     N2 = atoi(argv[2]);
     N3 = atoi(argv[3]);
+
+    // inicio los semaforos globales que limitan la concurrencia
+    sem_init(&lim_Esc, 0, 1);   // limites de escritores
+    sem_init(&lim_Lect, 0, N2); // limite de lectores
+    sem_init(&variable, 0, 1);
+    sem_init(&global, 0, 1);
+    sem_init(&esc_quiere, 0, 0); // no se como implementar este, asi que de momento uso la varibale esc_pend
 
     char cadena[10];
     int opcion;
@@ -119,31 +110,33 @@ int main(int argc, char *argv[])
     for (int i = 0; i < N1; i++)
     {
 
-        pthread_create(&id_lect[i], NULL, (void *)routine_lector, (void *)&id_l[i]);
-        id_l[i] = i;
-        // creo los semaforos de cada uno y luego los pongo a 0
-        sem_init(&LecStart[i], 0, 1);
-        sem_init(&LecStop[i], 0, 1);
-        sem_wait(&LecStop[i]);
-        sem_wait(&LecStart[i]);
+        if (pthread_create(&id_lect[i], NULL, (void *)routine_lector, (void *)&id_l[i]) != 0)
+            printf("ERROR CREANDO HILO\n");
+        else
+        {
+            id_l[i] = i;
+            // creo los semaforos de cada uno y luego los pongo a 0
+            sem_init(&LecStart[i], 0, 1);
+            sem_init(&LecStop[i], 0, 1);
+            sem_wait(&LecStop[i]);
+            sem_wait(&LecStart[i]);
+        }
     }
 
     // creo los escirotroes
     for (int i = 0; i < N3; i++)
     {
-        pthread_create(&id_Esc[i], NULL, (void *)routine_escritor, (void *)&id_e[i]);
-        id_e[i] = i;
-        sem_init(&EscStart[i], 0, 1);
-        sem_init(&EscStop[i], 0, 1);
-        sem_wait(&EscStop[i]);
-        sem_wait(&EscStart[i]);
+        if ((pthread_create(&id_Esc[i], NULL, (void *)routine_escritor, (void *)&id_e[i]) != 0))
+            printf("ERROR CREANDO HILO\n");
+        else
+        {
+            id_e[i] = i;
+            sem_init(&EscStart[i], 0, 1);
+            sem_init(&EscStop[i], 0, 1);
+            sem_wait(&EscStop[i]);
+            sem_wait(&EscStart[i]);
+        }
     }
-
-    // creo los semaforos globales que limitan la concurrencia
-    sem_init(&lim_Esc, 0, 1);   // limites de escritores
-    sem_init(&lim_Lect, 0, N2); // limite de lectores
-    sem_init(&variable, 0, 1);
-    sem_init(&global, 0, 1);
 
     int input;
     while (1)

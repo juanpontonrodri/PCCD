@@ -4,7 +4,7 @@
 #include <semaphore.h>
 
 // Adresses de los semaforos
-sem_t global; // este determina el numero maximo de lectores simulatenos
+sem_t global; // este determina el numero maximo de escriotres simulatenos
 
 sem_t escribir[5];
 sem_t salir[5];
@@ -34,11 +34,11 @@ int main(int argc, char *argv[])
 {
 
     int N3 = atoi(argv[1]);
-
-    // creao los adresses de los hilos para cada lector
-    pthread_t hilo[N3];
     // arranco el semaforo global con 1
     sem_init(&global, 0, 1);
+    // creao los adresses de los hilos para cada lector
+    pthread_t hilo[N3];
+
     // inciializo los hilos
     for (int i = 0; i < N3; i++)
     {
@@ -67,13 +67,13 @@ int main(int argc, char *argv[])
         switch (opcion)
         {
         case 1:
-            printf("Introduzca el numero del lector (del 1 al %i)\n", N3);
+            printf("Introduzca el numero del esccrtior (del 1 al %i)\n", N3);
             scanf("%i", &numero_lector);
             // incremetno el semaforo correspondiente al numero del lector
             sem_post(&escribir[numero_lector]);
             break;
         case 2:
-            printf("Introduzca el numero del lector (del 1 al %i)\n", N3);
+            printf("Introduzca el numero del escritor (del 1 al %i)\n", N3);
             scanf("%i", &numero_lector);
             sem_post(&salir[numero_lector]);
             break;
