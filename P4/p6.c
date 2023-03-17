@@ -4,8 +4,9 @@
 #include <unistd.h>
 #include <semaphore.h>
 
+//VERSION VIEJA
 sem_t papel_libre, EscStart[20], EscStop[20], LecStart[20], LecStop[20], lim_Esc, lim_Lect;
-sem_t var_lec, var_esc;
+sem_t var_lec, var_esc, ult_esc;
 
 int N1, N2, N3;
 int lectores = 0;
@@ -34,7 +35,7 @@ void routine_escritor(int *param)
         printf("[Escritor %d]Escribiendo ... \n", *param + 1);
         sem_wait(&EscStop[*param]);
         printf("[Escritor %d]Fin escritura \n", *param + 1);
-
+        sem_post(&ult_esc);
         sem_post(&papel_libre);
     }
 }
@@ -52,26 +53,39 @@ void routine_lector(int *param)
         sem_wait(&var_lec);
         if (lectores == 0)
         {
-            sem_wait(&papel_libre);
+            printf("lectores 0");
+            sem_post(&var_lec);
+            printf("prepapel");
+            sem_wait(&papel_libre);//no tenemos problema ya que al comenzar siempre va a entrar primero o un lector o unescritor
+            printf("postpapel");
+
             if (esc_pend != 0)
             {
+                            printf("prepapel2");
+
                 sem_post(&papel_libre); //le hacemos sitio
-                printf("ESCRITORES PENDIENTES\n"); // si despues de saber que hay sitio sigue habiendo escriotres pendientes
-                //sem_wait(&papel_libre); // espera a que el escritor libere el papel
+                printf("ESCRITORES PENDIENTES\n");
+                sem_wait(&ult_esc);//aqui esperamos a que el ultimo escritor pendiente salga
 
             }
-            else
-            {
-                printf("dentro del else\n");
-
-            }
+           
         }
 
+        printf("esperando limte lectores");
+
         sem_wait(&lim_Lect);
+        printf("esperando variable lec");
+
+        sem_wait(&var_lec);
         lectores++;
         printf("[Lector %d]Leyendo ...\n", *param + 1);
+        printf("esperando variable lec");
+
         sem_post(&var_lec);
+        printf("esperando stop");
+
         sem_wait(&LecStop[*param]);
+        printf("esperando variable lec");
         sem_wait(&var_lec);
         lectores--;
         if(lectores==0){
@@ -96,6 +110,7 @@ int main(int argc, char *argv[])
     sem_init(&var_lec, 0, 1);
     sem_init(&papel_libre, 0, 1);
     sem_init(&var_esc, 0, 1); // no se como implementar este, asi que de momento uso la varibale esc_pend
+    sem_init(&ult_esc,0,0);
 
     char cadena[10];
     int opcion;

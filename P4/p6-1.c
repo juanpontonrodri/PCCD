@@ -4,7 +4,8 @@
 #include <unistd.h>
 #include <semaphore.h>
 
-sem_t papel_libre, EscStart[20], EscStop[20], LecStart[20], LecStop[20], lim_Esc, lim_Lect, variable, esc_quiere;
+sem_t papel_libre, EscStart[20], EscStop[20], LecStart[20], LecStop[20], lim_Esc, lim_Lect;
+sem_t var_lec, var_esc;
 
 int N1, N2, N3;
 int lectores = 0;
@@ -20,21 +21,21 @@ void routine_escritor(int *param)
 
         sem_wait(&EscStart[*param]);
 
+        sem_wait(&var_esc); // protejo la variable esc_pend
         esc_pend++;
-
+        sem_post(&var_esc);
         printf("[Escritor %d]Intentando escribir... \n", *param + 1);
         // intentando acceder al papel
-        sem_wait(&lim_Esc);
-        sem_wait(&lim_Lect);
-
+        sem_wait(&papel_libre);
+        sem_wait(&var_esc);
         esc_pend--;
+        sem_post(&var_esc);
 
         printf("[Escritor %d]Escribiendo ... \n", *param + 1);
         sem_wait(&EscStop[*param]);
         printf("[Escritor %d]Fin escritura \n", *param + 1);
 
-        sem_post(&lim_Lect);
-        sem_post(&lim_Esc);
+        sem_post(&papel_libre);
     }
 }
 
@@ -48,32 +49,36 @@ void routine_lector(int *param)
 
         sem_wait(&LecStart[*param]);
         printf("[Lector %d]Intentando leer...\n", *param + 1);
+        sem_wait(&var_lec);
         if (lectores == 0)
         {
-            sem_wait(&lim_Esc);  // comprobamos si hay sitio para un escritor
-            sem_wait(&lim_Lect); // si hay sitio para otra persona
+            sem_wait(&papel_libre);
             if (esc_pend != 0)
             {
+                sem_post(&papel_libre); //le hacemos sitio
                 printf("ESCRITORES PENDIENTES\n"); // si despues de saber que hay sitio sigue habiendo escriotres pendientes
-                sem_post(&lim_Esc);                // habilitamos al escritor para q entre
-                sem_post(&lim_Lect);
-                sem_wait(&papel_libre); // espera a que el escritor libere el papel
+                //sem_wait(&papel_libre); // espera a que el escritor libere el papel
+
             }
             else
             {
                 printf("dentro del else\n");
 
-                sem_post(&lim_Esc);
-                sem_post(&lim_Lect);
             }
         }
 
         sem_wait(&lim_Lect);
         lectores++;
         printf("[Lector %d]Leyendo ...\n", *param + 1);
+        sem_post(&var_lec);
         sem_wait(&LecStop[*param]);
+        sem_wait(&var_lec);
+        lectores--;
+        if(lectores==0){
+            sem_post(&papel_libre);
+        }
         printf("[Lector %d]Fin lectura \n", *param + 1);
-
+        sem_post(&var_lec);
         sem_post(&lim_Lect);
     }
 }
@@ -88,9 +93,9 @@ int main(int argc, char *argv[])
     // inicio los semaforos globales que limitan la concurrencia
     sem_init(&lim_Esc, 0, 1);   // limites de escritores
     sem_init(&lim_Lect, 0, N2); // limite de lectores
-    sem_init(&variable, 0, 1);
+    sem_init(&var_lec, 0, 1);
     sem_init(&papel_libre, 0, 1);
-    sem_init(&esc_quiere, 0, 0); // no se como implementar este, asi que de momento uso la varibale esc_pend
+    sem_init(&var_esc, 0, 1); // no se como implementar este, asi que de momento uso la varibale esc_pend
 
     char cadena[10];
     int opcion;
