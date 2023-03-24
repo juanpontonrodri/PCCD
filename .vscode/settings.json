@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "ipc.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "shm.h": "c"
     }
 }
