@@ -3,49 +3,86 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <time.h>
 
+#define TABACO 1
+#define PAPEL 2
+#define FOSFOROS 3
 
 struct mensaje {
     long tipo;
     int dato;
 };
 
-int main(int argc, char *argv[]) {
-    const char *fumadorString[] = {"Papel", "Tabaco", "Fósforos"};
-    const char *necesidades[] = {"el tabaco y los fósforos", "el papel y los fósforos", "el papel y el tabaco"};
-    int fumador, i, id_cola[3];
+void fumador(int tipo_fumador) {
+    int tipo_ingrediente1, tipo_ingrediente2, id_cola1, id_cola2;
     struct mensaje mensaje;
+    switch (tipo_fumador) {
+        case TABACO:
+            tipo_ingrediente1 = PAPEL;
+            tipo_ingrediente2 = FOSFOROS;
+            id_cola1 = msgget(23, 0600 | IPC_CREAT);
+            id_cola2 = msgget(24, 0600 | IPC_CREAT);
+            printf("[Fumador Tabaco]-> Soy fumador de tabaco\n");
+            break;
+        case PAPEL:
+            tipo_ingrediente1 = FOSFOROS;
+            tipo_ingrediente2 = TABACO;
+            id_cola1 = msgget(24, 0600 | IPC_CREAT);
+            id_cola2 = msgget(22, 0600 | IPC_CREAT);
+            printf("[Fumador Papel]-> Soy fumador de papel\n");
+            break;
+        case FOSFOROS:
+            tipo_ingrediente1 = PAPEL;
+            tipo_ingrediente2 = TABACO;
+            id_cola1 = msgget(23, 0600 | IPC_CREAT);
+            id_cola2 = msgget(24, 0600 | IPC_CREAT);
 
-    if (argc != 2) {
-        printf("La llamada correcta al proceso es: %s tipo\n", argv[0]);
-        exit(-1);
+            printf("[Fumador Fósforos]-> Soy fumador de fósforos\n");
+            break;
+        default:
+            printf("Error: tipo de fumador no válido\n");
+            exit(1);
     }
-
-    fumador = atoi(argv[1]);
-    mensaje.tipo = 1;
-    mensaje.dato = 1;
-
-    for (i = 0; i < 3; i++) {
-        key_t key = 22 + ((i + fumador) % 3);  // Se utiliza la aritmética modular para obtener la clave de la cola.
-        id_cola[i] = msgget(key, 0600 | IPC_CREAT);
-    }
-
     while (1) {
-        printf("[Fumador %s]-> Intentando fumar...\n", fumadorString[fumador]);
-        msgrcv(id_cola[fumador], &mensaje, sizeof(int), 1, 0);
-        printf("[Fumador %s]-> He cogido %s que ha puesto el proveedor y estoy fumando\n", fumadorString[fumador], necesidades[fumador]);
-        getchar();
-        printf("[Fumador %s]-> He dejado de fumar\n", fumadorString[fumador]);
+        if (msgrcv(id_cola1, &mensaje, sizeof(struct mensaje) - sizeof(long), tipo_ingrediente1, IPC_NOWAIT) != -1) {
+            //Hay ingrediente 1, cogerlo y soltarlo
+            msgsnd(id_cola1, &mensaje, sizeof(struct mensaje) - sizeof(long), tipo_ingrediente1);
+            printf("[Fumador]-> Devuelto\n");
+            if (msgrcv(id_cola2, &mensaje, sizeof(struct mensaje) - sizeof(long), tipo_ingrediente2, 0) != -1) {
+                //Tengo ingrediente 1
+                printf("[Fumador]-> Tengo ingrediente 1\n");
 
-        // Comprobamos si los ingredientes son los necesarios.
-        if ((fumador == 0 && mensaje.dato != 3) || (fumador == 1 && mensaje.dato != 5) || (fumador == 2 && mensaje.dato != 6)) {
-            printf("[Fumador %s]-> Los ingredientes no son los necesarios. Volviendo a poner los ingredientes en la cola...\n", fumadorString[fumador]);
-            msgsnd(id_cola[(fumador + 2) % 3], &mensaje, sizeof(int), 0);  // Se utiliza la aritmética modular para enviar el mensaje a la cola correspondiente.
+                if (msgrcv(id_cola2, &mensaje, sizeof(struct mensaje) - sizeof(long), tipo_ingrediente2, 0) != -1) {
+
+                printf("[Fumador]-> Tengo ingrediente 2, fumando...\n");
+                sleep(1);
+                printf("[Fumador]-> Terminé de fumar\n");
+                }
+            }
+            
         } else {
-            msgsnd(id_cola[(fumador + 2) % 3], &mensaje, sizeof(int), 0);  // Se utiliza la aritmética modular para enviar el mensaje a la cola correspondiente.
+            //No hay ingrediente 1, esperar
+            printf("[Fumador]-> No tengo ingrediente 1, esperando...\n");
         }
     }
+    
+}
+
+
+int main(int argc, char *argv[]) {
+    int tipo_fumador;
+    srand(time(NULL));
+    int id_cola = msgget(99, 0600 | IPC_CREAT);
+
+    if (argc != 2) {
+        printf("Error: debe especificar el tipo de fumador (1 para tabaco, 2 para papel, 3 para fósforos)\n");
+        exit(1);
+    }
+
+    tipo_fumador = atoi(argv[1]);
+
+    fumador(tipo_fumador);
 
     return 0;
 }
