@@ -3,5 +3,6 @@
         "ipc.h": "c",
         "stdio.h": "c",
         "shm.h": "c"
-    }
+    },
+    "C_Cpp.errorSquiggles": "enabled"
 }
