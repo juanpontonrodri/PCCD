@@ -5,24 +5,25 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <math.h> // para fmax()
 // seamforos para proteger vairabless
-// quie empieza con el testio
 
 int cola(int id);
+void *proc_receptor(void *);
 
-typedef struct Testigo
+struct Testigo
 {
     long mtype;
     int IDNodoOrigen;
     int atendidas_testigo[100];
-} Testigo;
+};
 
-typedef struct PeticionTestigo
+struct PeticionTestigo
 {
     long mtype;
     int IDNodoOrigen;
     int numero_peticion;
-} PeticionTestigo;
+};
 
 int id_cola;
 int mi_peticion = 0;
@@ -33,15 +34,16 @@ int main(int argc, char *argv[])
 {
     int num_nodos = 2;
 
-    Testigo Testigo;
-    PeticionTestigo PeticionTestigo;
+    struct Testigo Testigo;
+    struct PeticionTestigo PeticionTestigo;
 
     pthread_t receptor;
 
-    int id_nodo_sig = 0, id_nodos[2 - 1] = {1235, 1236}, opcion, estado;
+    int id_nodo_sig = 0, opcion, estado;
     char cadena[10];
 
     mi_id = atoi(argv[1]);
+    testigo = atoi(argv[2]);
 
     id_cola = cola(mi_id);
 
@@ -78,7 +80,7 @@ int main(int argc, char *argv[])
                     estado = msgsnd(id_cola_otro, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 0);
                     if (estado == -1)
                     {
-                        perror("msgsnd");
+                        perror("msgsnd buscanod testigo");
                         exit(EXIT_FAILURE);
                     }
                     printf("Peticion enviada: %d\n", i);
@@ -132,11 +134,11 @@ int main(int argc, char *argv[])
     }
 }
 
-void proc_receptor()
+void *proc_receptor(void *)
 {
     int id_nodo_origen = 0, num_peticion_origen = 0, estado;
-    Testigo Testigo;
-    PeticionTestigo PeticionTestigo;
+    struct Testigo Testigo;
+    struct PeticionTestigo PeticionTestigo;
     while (1)
     {
 
@@ -151,7 +153,7 @@ void proc_receptor()
         id_nodo_origen = PeticionTestigo.IDNodoOrigen;
         num_peticion_origen = PeticionTestigo.numero_peticion;
 
-        vector_peticiones[id_nodo_origen] = MAX(vector_peticiones[id_nodo_origen], num_peticion_origen);
+        vector_peticiones[id_nodo_origen] = fmax(vector_peticiones[id_nodo_origen], num_peticion_origen);
 
         if (testigo && (!dentro) && (vector_peticiones[id_nodo_origen] > vector_atendidas[id_nodo_origen]))
         {
