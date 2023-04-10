@@ -14,6 +14,7 @@
 
 int cola(int id);
 void *proc_receptor(void *);
+void *proceso_main(int tipo_proceso);
 
 struct Control
 {
@@ -39,7 +40,7 @@ struct PeticionTestigo
 int id_cola;
 int mi_id;
 int id_nodo_sig = 0,id_proceso_sig, flag_cola=0, num_nodos;
-int vector_peticiones[100][5] = {0}, vector_atendidas[100][5] = {0}, dentro = 0, testigo = 1; 
+int vector_peticiones[100][5] = {0}, vector_atendidas[100][5] = {0}, dentro = 0, testigo = 0; 
 
 int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el numero de nodos
 {
@@ -59,9 +60,11 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
     pthread_create(&receptor, NULL, proc_receptor, NULL);
 
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 1; i < 6; i++)
     {
-        pthread_create(&receptor, NULL, proceso_main, i);
+      
+
+pthread_create(&receptor, NULL, (void *(*)(void *))proceso_main, (void *)i);
     }
     
     int opcion, estado;
@@ -144,7 +147,9 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
         
         case 2:
             printf("Saliendo...\n");
-        // eliminar colas
+            if (msgctl(id_cola, IPC_RMID, NULL) == -1) {
+                perror("Error eliminando la cola");
+            }
             exit(EXIT_SUCCESS);
             break;
         default:
@@ -240,7 +245,7 @@ void *proc_receptor(void *)
     }
 }
 
-int proceso_main(int tipo_proceso){
+void *proceso_main(int tipo_proceso){
 
     int mi_peticion=0;
     int estado, testigo_proc=0;
@@ -252,7 +257,9 @@ int proceso_main(int tipo_proceso){
     switch (tipo_proceso)
     {
         case 1:
-            testigo=1;
+            if(mi_id==0){
+                testigo=1;
+            }
             ntype_testigo=11;
             ntype_peticion=12;
             ntype_control=15;
@@ -281,8 +288,11 @@ int proceso_main(int tipo_proceso){
             break;           
     }
 
+    printf("Soy el proceso %d y mi testigo es %d \n",tipo_proceso,testigo);
+
     while (1)
     {
+
         while (testigo==1)
         {
             sleep(1);
@@ -307,7 +317,7 @@ int proceso_main(int tipo_proceso){
 
                     int id_cola_otro = cola(i);
 
-                    PeticionTestigo.mtype = ntype_peticion;
+                    PeticionTestigo.mtype = 2;
                     PeticionTestigo.IDNodoOrigen = mi_id;
                     PeticionTestigo.numero_peticion = mi_peticion;
                     PeticionTestigo.IDProcesoOrigen = tipo_proceso;
@@ -355,11 +365,10 @@ int proceso_main(int tipo_proceso){
 
                     testigo = 0;
 
-                    printf("#Testigo enviado por el principal desde el nodo: %d, al nodo %d desde el proceso\n",mi_id, id_nodo_sig, tipo_proceso);
+                    printf("#Testigo enviado por el principal desde el nodo: %d, al nodo %d desde el proceso %d\n",mi_id, id_nodo_sig, tipo_proceso);
                     flag_cola = 0;
                 }
     }
-    return 0;
 }
 
 
