@@ -6,6 +6,7 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <math.h> // para fmax()
+
 // seamforos para proteger vairabless
 
 int cola(int id);
@@ -166,8 +167,6 @@ void *proc_receptor(void *)
         {
             flag_cola=0;
             int id_cola_otro = cola(id_nodo_origen);
-
-            // int id_cola_otro = cola(99);
 
             Testigo.mtype = 1;
             Testigo.atendidas_testigo[mi_id] = mi_peticion;
