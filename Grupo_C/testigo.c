@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el te
     pthread_create(&receptor, NULL, proc_receptor, NULL);
     while (1)
     {
-        while (testigo)
+        while (testigo==1)
         {
             sleep(1);
         }
@@ -67,23 +67,23 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el te
 
                 mi_peticion = mi_peticion + 1;
 
-                for (int i = 1; i < num_nodos; i++)
+                for (int i = 0; i < num_nodos; i++)
                 {
                     if (i == mi_id)
                         continue;
 
                     int id_cola_otro = cola(i);
 
-                    PeticionTestigo.mtype = 1;
-                    PeticionTestigo.IDNodoOrigen = 1;
-                    PeticionTestigo.numero_peticion = 5;
+                    PeticionTestigo.mtype = 2;
+                    PeticionTestigo.IDNodoOrigen = mi_id;
+                    PeticionTestigo.numero_peticion = mi_peticion;
                     estado = msgsnd(id_cola_otro, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 0);
                     if (estado == -1)
                     {
                         perror("msgsnd buscanod testigo");
                         exit(EXIT_FAILURE);
                     }
-                    printf("Peticion enviada: %d\n", i);
+                    printf("Peticion enviada al nodo: %d con nº: %d\n", i, mi_peticion);
                 }
 
                 estado = msgrcv(id_cola, &Testigo, sizeof(struct Testigo) - sizeof(long), 1, 0); // con el ultimo 0 es modo bloqueante si en vez del 0 pones reciebe no wait no se queda suspendido si no hay mensaje
@@ -107,9 +107,7 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el te
             if (id_nodo_sig != 0)
                 if (vector_peticiones[id_nodo_sig] > vector_atendidas[id_nodo_sig])
                 {
-                    Testigo.mtype = 1;
-                    Testigo.IDNodoOrigen = mi_id;
-                    Testigo.atendidas_testigo[mi_id] = mi_peticion;
+                    
                     int id_cola_sig = cola(id_nodo_sig);
                     Testigo.mtype = 1;
                     Testigo.atendidas_testigo[mi_id] = mi_peticion;
@@ -120,7 +118,10 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el te
                         perror("msgsnd testigo principal");
                         exit(EXIT_FAILURE);
                     }
-                    printf("Testigo enviado principal: %d\n", id_nodo_sig);
+
+                    testigo = 0;
+
+                    printf("Testigo enviado por el principal desde el nodo: %d, al nodo %d\n",mi_id, id_nodo_sig);
                 }
 
             break;
@@ -141,18 +142,20 @@ void *proc_receptor(void *)
     struct PeticionTestigo PeticionTestigo;
     while (1)
     {
+        printf("Esperando peticio en la cola %d\n", id_cola);
 
-        estado = msgrcv(id_cola, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 1, 0); // con el ultimo 0 es modo bloqueante si en vez del 0 pones reciebe no wait no se queda suspendido si no hay mensaje
+        estado = msgrcv(id_cola, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 2, 0); // con el ultimo 0 es modo bloqueante si en vez del 0 pones reciebe no wait no se queda suspendido si no hay mensaje
 
         if (estado == -1)
         {
-            perror("msgrcv peticion testigo");
+            printf(" error msgrcv peticion testigo\n");
             exit(EXIT_FAILURE);
         }
 
         id_nodo_origen = PeticionTestigo.IDNodoOrigen;
-        printf("He recibido una peticion del nodo %d \n", id_nodo_origen);
         num_peticion_origen = PeticionTestigo.numero_peticion;
+
+        printf("He recibido una peticion del nodo %d con nº: %d \n", id_nodo_origen, num_peticion_origen);
 
         vector_peticiones[id_nodo_origen] = fmax(vector_peticiones[id_nodo_origen], num_peticion_origen);
 
@@ -168,32 +171,36 @@ void *proc_receptor(void *)
             estado = msgsnd(id_cola_otro, &Testigo, sizeof(struct Testigo) - sizeof(long), 0);
             if (estado == -1)
             {
-                perror("msgsnd testigo hilo receptor");
+                perror("msgsnd testigo del hilo receptor");
                 exit(EXIT_FAILURE);
             }
-            printf("Testigo enviado hilo desde: %d\n", id_nodo_origen);
+
+            testigo=0;
+
+            printf("Testigo enviado por el hilo desde nodo: %d, al nodo: %d \n", mi_id, id_nodo_origen);
         }
     }
 }
 
 int cola(int id)
 {
-    /*  key_t clave;
+      key_t clave;
      clave = ftok("./", id);
      if (clave == (key_t)-1)
      {
          printf("Error al obtener la clave.\n");
          exit(0);
-     } */
-    key_t clave = id;
+     } 
+    //key_t clave = id;
     int id_cola = msgget(clave, 0777 | IPC_CREAT);
     if (id_cola == -1)
     {
-        perror("msgget");
+        perror("msgget de la funcion cola");
         exit(-1);
     }
+    printf("{{COLA: \n");
     printf("id_cola: %d\n", id_cola);
     printf("id: %d\n", id);
-    printf("clave: %d\n", clave);
+    printf("clave: %d}}\n\n", clave);
     return id_cola;
 }
