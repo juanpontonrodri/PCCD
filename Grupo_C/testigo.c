@@ -28,18 +28,19 @@ struct PeticionTestigo
 int id_cola;
 int mi_peticion = 0;
 int mi_id;
+int id_nodo_sig = 0, flag_cola=0;
 int vector_peticiones[100] = {0}, vector_atendidas[100] = {0}, dentro = 0, testigo = 1; // ->0 los otros nodos
 
-int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el testigo
+int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el testigo y argv[3] es el numero de nodos
 {
-    int num_nodos = 2;
+    int num_nodos = atoi(argv[3]);
 
     struct Testigo Testigo;
     struct PeticionTestigo PeticionTestigo;
 
     pthread_t receptor;
 
-    int id_nodo_sig = 0, opcion, estado;
+    int opcion, estado;
     char cadena[10];
 
     mi_id = atoi(argv[1]);
@@ -93,18 +94,18 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el te
                     perror("msgrcv testigo principal");
                     exit(EXIT_FAILURE);
                 }
-                printf("He recibido el testigo \n");
+                printf("#He recibido el testigo \n");
                 testigo = 1;
             }
 
             dentro = 1;
-            printf("Entrando en la SC\n");
+            printf("#Entrando en la SC\n");
             sleep(2); // SC
-            printf("Saliendo de la SC\n");
+            printf("#Saliendo de la SC\n");
             vector_atendidas[mi_id] = mi_peticion;
             dentro = 0;
 
-            if (id_nodo_sig != 0)
+            if (flag_cola != 0)
                 if (vector_peticiones[id_nodo_sig] > vector_atendidas[id_nodo_sig])
                 {
                     
@@ -121,7 +122,8 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo y argv[2] es el te
 
                     testigo = 0;
 
-                    printf("Testigo enviado por el principal desde el nodo: %d, al nodo %d\n",mi_id, id_nodo_sig);
+                    printf("#Testigo enviado por el principal desde el nodo: %d, al nodo %d\n",mi_id, id_nodo_sig);
+                    flag_cola = 0;
                 }
 
             break;
@@ -142,7 +144,7 @@ void *proc_receptor(void *)
     struct PeticionTestigo PeticionTestigo;
     while (1)
     {
-        printf("Esperando peticio en la cola %d\n", id_cola);
+        printf("\nEsperando petición en la cola %d\n", id_cola);
 
         estado = msgrcv(id_cola, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 2, 0); // con el ultimo 0 es modo bloqueante si en vez del 0 pones reciebe no wait no se queda suspendido si no hay mensaje
 
@@ -159,8 +161,10 @@ void *proc_receptor(void *)
 
         vector_peticiones[id_nodo_origen] = fmax(vector_peticiones[id_nodo_origen], num_peticion_origen);
 
+        
         if (testigo && (!dentro) && (vector_peticiones[id_nodo_origen] > vector_atendidas[id_nodo_origen]))
         {
+            flag_cola=0;
             int id_cola_otro = cola(id_nodo_origen);
 
             // int id_cola_otro = cola(99);
@@ -178,6 +182,14 @@ void *proc_receptor(void *)
             testigo=0;
 
             printf("Testigo enviado por el hilo desde nodo: %d, al nodo: %d \n", mi_id, id_nodo_origen);
+        }
+        else
+        {
+            if (testigo && (dentro) && (vector_peticiones[id_nodo_origen] > vector_atendidas[id_nodo_origen])){
+                flag_cola=1;
+                id_nodo_sig=id_nodo_origen;
+                printf("id_nodo_sig: %d\n", id_nodo_sig);
+            }
         }
     }
 }
@@ -200,7 +212,7 @@ int cola(int id)
     }
     printf("{{COLA: \n");
     printf("id_cola: %d\n", id_cola);
-    printf("id: %d\n", id);
+    printf("id_nodo: %d\n", id);
     printf("clave: %d}}\n\n", clave);
     return id_cola;
 }
