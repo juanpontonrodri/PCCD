@@ -7,6 +7,7 @@
 #include <sys/msg.h>
 #include <math.h> // para fmax()
 #include <semaphore.h>
+#include <time.h>
 
 //tipos de mensajes:11 21 31 41 51 testigo 12 22 32 42 52 peticion testigo
 // 15 25 35 45 55 pedir testigo en ese proceso
@@ -25,7 +26,6 @@ struct Testigo
 {
     long mtype;
     int IDNodoOrigen;
-    int IDProcesoOrigen;
     int atendidas_testigo[10][5];
 };
 
@@ -176,13 +176,15 @@ void *proc_receptor(void *)
     struct PeticionTestigo PeticionTestigo;
     while (1)
     {
-        printf("\nEsperando petición en la cola %d \n", id_cola);
+        printf("\nR: Esperando petición en la cola %d \n", id_cola);
 
         estado = msgrcv(id_cola, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 2, 0); // con el ultimo 0 es modo bloqueante si en vez del 0 pones reciebe no wait no se queda suspendido si no hay mensaje
+        time_t now = time(NULL);
+        printf("R:  Tiempo actual: %ld.%03ld segundos\n", now, (clock() * 1000 / CLOCKS_PER_SEC) % 1000);
 
         if (estado == -1)
         {
-            printf(" error msgrcv peticion testigo\n");
+            printf("R:  error msgrcv peticion testigo\n");
             exit(EXIT_FAILURE);
         }
 
@@ -190,42 +192,23 @@ void *proc_receptor(void *)
         num_peticion_origen = PeticionTestigo.numero_peticion;
         id_proceso_origen = PeticionTestigo.IDProcesoOrigen;
 
-        printf("He recibido una peticion del nodo %d del proceso %d con nº: %d \n", id_nodo_origen,id_proceso_origen, num_peticion_origen);
-
+        printf("R: He recibido una peticion del nodo %d del proceso %d con nº: %d \n", id_nodo_origen,id_proceso_origen, num_peticion_origen);
+        fflush(stdout);
         vector_peticiones[id_nodo_origen][id_proceso_origen] = fmax(vector_peticiones[id_nodo_origen][id_proceso_origen], num_peticion_origen);
 
         
-        sem_wait(&sem_vector_aten);
-        sem_wait(&sem_vector_pet);
-        printf("\n ||valoro testigo %d dentro %d \n", testigo, dentro);
-        if (testigo && (!dentro) && (vector_peticiones[id_nodo_origen][id_proceso_origen] > vector_atendidas[id_nodo_origen][id_proceso_origen]))
-        {
+        //sem_wait(&sem_vector_aten);
+        //sem_wait(&sem_vector_pet);
+        printf("\nR: ||valoro testigo:%d dentro:%d nodo_orig:%d proceso_orig:%d nºpeti:%d nºatend%d\n", testigo, dentro, id_nodo_origen, id_proceso_origen, vector_peticiones[id_nodo_origen][id_proceso_origen], vector_atendidas[id_nodo_origen][id_proceso_origen]);
+        if ((testigo!=0) && (!dentro) && (vector_peticiones[id_nodo_origen][id_proceso_origen] > vector_atendidas[id_nodo_origen][id_proceso_origen]))
+        {   
+            printf("\nR: ||entro en el if\n");
             sem_wait(&sem_flag_cola);
             flag_cola=0;
             sem_post(&sem_flag_cola);
             int id_cola_otro = cola(id_nodo_origen);
-
-            switch (id_proceso_origen)
-            {
-            case 1:
-                Testigo.mtype = 11;
-                break;
-            case 2:
-                Testigo.mtype = 21;
-                break;
-            case 3:
-                Testigo.mtype = 31;
-                break;
-            case 4:
-                Testigo.mtype = 41;
-                break;
-            case 5:
-                Testigo.mtype = 51;
-                break;
+            Testigo.mtype = id_proceso_origen*10+1;
             
-            default:
-                break;
-            }
 
             for (int i = 0; i < 5; i++)
             {
@@ -233,21 +216,26 @@ void *proc_receptor(void *)
             }
 
             Testigo.IDNodoOrigen = mi_id;
+
             estado = msgsnd(id_cola_otro, &Testigo, sizeof(struct Testigo) - sizeof(long), 0);
+            time_t now = time(NULL);
+            printf("R: Tiempo actual: %ld.%03ld segundos\n", now, (clock() * 1000 / CLOCKS_PER_SEC) % 1000);
+
             if (estado == -1)
             {
-                perror("msgsnd testigo del hilo receptor");
+                perror("R: msgsnd testigo del hilo receptor");
                 exit(EXIT_FAILURE);
             }
 
             sem_wait(&sem_testigo);
             testigo=0;
             sem_post(&sem_testigo);
-            printf("Testigo enviado por el hilo desde nodo: %d, al nodo: %d con proceso %d  \n", mi_id, id_nodo_origen, id_proceso_origen);
+            printf("R: #Testigo enviado por el hilo desde nodo: %d, al nodo: %d con proceso %d  \n", mi_id, id_nodo_origen, id_proceso_origen);
+            fflush(stdout);
         }
         else
         {
-            if (testigo && (dentro) && (vector_peticiones[id_nodo_origen][id_proceso_origen] > vector_atendidas[id_nodo_origen][id_proceso_origen])){
+            if ((testigo!=0) && (dentro) && (vector_peticiones[id_nodo_origen][id_proceso_origen] > vector_atendidas[id_nodo_origen][id_proceso_origen])){
                 sem_wait(&sem_flag_cola);
                 flag_cola=1;
                 sem_post(&sem_flag_cola);
@@ -257,7 +245,7 @@ void *proc_receptor(void *)
                 sem_wait(&sem_id_proceso_sig);
                 id_proceso_sig=id_proceso_origen;
                 sem_post(&sem_id_proceso_sig);
-                printf("//id_nodo_sig: %d id_proceso_sig: %d\n",id_nodo_sig,id_proceso_sig);
+                printf("R: //id_nodo_sig: %d id_proceso_sig: %d\n",id_nodo_sig,id_proceso_sig);
             }
         }
         sem_post(&sem_vector_aten);
@@ -311,15 +299,17 @@ void *proceso_main(int tipo_proceso){
             break;            
     }
 
-    printf("Soy el proceso %d y mi testigo es %d \n",tipo_proceso,testigo);
+    printf("P%d : y mi testigo es %d \n",tipo_proceso,testigo);
 
     while (1)
     {
         //CAMBIAR ESTO
-        while (testigo==1)
+        /* while (testigo==1)
         {
-            sleep(1);
-        }
+            sleep(5);
+            printf("Soy el proceso %d y mi testigo es %d \n",tipo_proceso,testigo);
+
+        } */
         
             estado = msgrcv(id_cola, &Control, sizeof(struct Control) - sizeof(long), ntype_control, 0); 
                 if (estado == -1)
@@ -327,13 +317,13 @@ void *proceso_main(int tipo_proceso){
                     printf("msgrcv recibiendo la orden de pedir testigo %d\n", tipo_proceso);
                     exit(EXIT_FAILURE);
                 }
-            printf("Pidiendo testigo\n");
+            printf("P%d: Pidiendo testigo\n",tipo_proceso);
             
-            sem_wait(&sem_testigo);
-            printf("testigo: %d\n",testigo);
-            if (!testigo)
+            //sem_wait(&sem_testigo);
+    printf("Soy el proceso %d y mi testigo es %d \n",tipo_proceso,testigo);
+            if (testigo!=tipo_proceso)
             {
-                sem_post(&sem_testigo);
+                //sem_post(&sem_testigo);
                 mi_peticion = mi_peticion + 1;
 
                 for (int i = 0; i < num_nodos; i++)
@@ -353,46 +343,48 @@ void *proceso_main(int tipo_proceso){
                         printf("msgsnd buscando testigo en proceso %d\n", tipo_proceso);
                         exit(EXIT_FAILURE);
                     }
-                    printf("Peticion enviada al nodo: %d con nº: %d desde el proceso %d \n", i, mi_peticion, tipo_proceso);
+                    printf("P%d :Peticion enviada al nodo: %d con nº: %d desde el proceso %d \n", tipo_proceso, i, mi_peticion, tipo_proceso);
                 }
-                
-                estado = msgrcv(id_cola, &Testigo, sizeof(struct Testigo) - sizeof(long), ntype_testigo, 0); // con el ultimo 0 es modo bloqueante si en vez del 0 pones reciebe no wait no se queda suspendido si no hay mensaje
+                printf("P%d: Esperando testigo\n",tipo_proceso);
+                estado = msgrcv(id_cola, &Testigo, sizeof(struct Testigo) - sizeof(long), ntype_testigo, 0); 
 
                 if (estado == -1)
                 {
                     printf("msgrcv buscando testigo en proceso %d\n", tipo_proceso);
                     exit(EXIT_FAILURE);
                 }
-                printf("#He recibido el testigo en el proceso %d\n", tipo_proceso);
+                printf("P%d: #He recibido el testigo\n", tipo_proceso);
                 sem_wait(&sem_testigo);
-                testigo = 1;
+                testigo = tipo_proceso;
                 sem_post(&sem_testigo);
             }
-            sem_post(&sem_testigo);
+            //sem_post(&sem_testigo);
             sem_wait(&sem_dentro);
             dentro = 1;
-            sem_post(&sem_dentro);
-            printf("#Entrando en la SC en el proceso %d\n", tipo_proceso);
-            sleep(2); // Simulamos la sección crítica
-            printf("#Saliendo de la SC en el proceso %d\n", tipo_proceso);
+            printf("P%d: #Entrando en la SC\n", tipo_proceso);
+            sleep(5); // Simulamos la sección crítica
+            printf("P%d: #Saliendo de la SC\n", tipo_proceso);
             sem_wait(&sem_vector_aten);
             vector_atendidas[mi_id][tipo_proceso] = mi_peticion;
             sem_post(&sem_vector_aten);
-            sem_wait(&sem_dentro);
             dentro = 0;
             sem_post(&sem_dentro);
-            printf("#Fuera de la SC en el proceso %d\n", tipo_proceso);
+            printf("P%d: #Fuera de la SC\n", tipo_proceso);
             sem_wait(&sem_flag_cola);
-            printf("flag_cola: %d\n",flag_cola);
+            printf("P%d: flag_cola: %d\n", tipo_proceso, flag_cola);
             if (flag_cola != 0){
                 if (vector_peticiones[id_nodo_sig][id_proceso_sig] > vector_atendidas[id_nodo_sig][id_proceso_sig])
                 {
-                    printf("atiendo a la peticion en cola del nodo: %d, proceso: %d\n", id_nodo_sig, id_proceso_sig);
+                    printf("P%d: atiendo a la peticion en cola del nodo: %d, proceso: %d\n",tipo_proceso, id_nodo_sig, id_proceso_sig);
                     int id_cola_sig = cola(id_nodo_sig);
-                    Testigo.mtype = 1;
+                    int tipo_proceso_sig = id_proceso_sig*10 + 1;
+                    Testigo.mtype = tipo_proceso_sig;
                     Testigo.atendidas_testigo[mi_id][tipo_proceso] = mi_peticion;
                     Testigo.IDNodoOrigen = mi_id;
                     estado = msgsnd(id_cola_sig, &Testigo, sizeof(struct Testigo) - sizeof(long), 0);
+                    time_t now = time(NULL);
+                    printf("P%d: Tiempo actual: %ld.%03ld segundos\n",tipo_proceso, now, (clock() * 1000 / CLOCKS_PER_SEC) % 1000);
+
                     if (estado == -1)
                     {
                         printf("msgsnd enviando testigo en proceso %d\n", tipo_proceso);
@@ -401,11 +393,12 @@ void *proceso_main(int tipo_proceso){
                     sem_wait(&sem_testigo);
                     testigo = 0;
                     sem_post(&sem_testigo);
-                    printf("#Testigo enviado por el principal desde el nodo: %d desde el proceso %d al nodo: %d desde el proceso %d\n", mi_id, tipo_proceso, id_nodo_sig, id_proceso_sig);
+                    printf("P%d: #Testigo enviado por el principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n",tipo_proceso, mi_id, tipo_proceso, id_nodo_sig, id_proceso_sig);
                     flag_cola = 0;
                 }
             }
             sem_post(&sem_flag_cola);
+        
     }
 }
 
