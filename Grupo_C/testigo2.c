@@ -9,7 +9,7 @@
 #include <semaphore.h>
 #include <time.h>
 
-//tipos de mensajes:11 21 31 41 51 testigo 12 22 32 42 52 peticion testigo
+//tipos de mensajes:11 21 31 41 51 testigo 
 // 15 25 35 45 55 pedir testigo en ese proceso
 
 
@@ -260,7 +260,7 @@ void *proceso_main(int tipo_proceso){
     struct Testigo Testigo;
     struct Control Control;
     struct PeticionTestigo PeticionTestigo;
-    int ntype_testigo,ntype_peticion,ntype_control;
+    int ntype_testigo,ntype_control;
 
     switch (tipo_proceso)
     {
@@ -271,27 +271,22 @@ void *proceso_main(int tipo_proceso){
                 sem_post(&sem_testigo);
             }
             ntype_testigo=11;
-            ntype_peticion=12;
             ntype_control=15;
             break;
         case 2:
             ntype_testigo=21;
-            ntype_peticion=22;
             ntype_control=25;
             break;
         case 3:
             ntype_testigo=31;
-            ntype_peticion=32;
             ntype_control=35;
             break;
         case 4:
             ntype_testigo=41;
-            ntype_peticion=42;
             ntype_control=45;
             break;
         case 5:
             ntype_testigo=51;
-            ntype_peticion=52;
             ntype_control=55;
             break;
         default:
@@ -303,7 +298,6 @@ void *proceso_main(int tipo_proceso){
 
     while (1)
     {
-        //CAMBIAR ESTO
         /* while (testigo==1)
         {
             sleep(5);
@@ -320,7 +314,7 @@ void *proceso_main(int tipo_proceso){
             printf("P%d: Pidiendo testigo\n",tipo_proceso);
             
             //sem_wait(&sem_testigo);
-    printf("Soy el proceso %d y mi testigo es %d \n",tipo_proceso,testigo);
+            printf("Soy el proceso %d y mi testigo es %d \n",tipo_proceso,testigo);
             if (testigo!=tipo_proceso)
             {
                 //sem_post(&sem_testigo);
