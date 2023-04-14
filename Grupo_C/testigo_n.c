@@ -203,7 +203,7 @@ void *proc_receptor(void *)
             sem_wait(&sem_flag_cola);
             flag_cola = 0;
             sem_post(&sem_flag_cola);
-            int id_cola_otro = cola_entrada(id_nodo_origen);
+            int id_cola_otro = cola_distribucion(id_nodo_origen);
             Testigo.mtype = id_proceso_origen * 10 + 1;
 
             for (int i = 0; i < 5; i++)
@@ -226,7 +226,7 @@ void *proc_receptor(void *)
             sem_wait(&sem_testigo);
             testigo = 0;
             sem_post(&sem_testigo);
-            printf("R: #Testigo enviado por el hilo desde nodo: %d, al nodo: %d con proceso %d  \n", mi_id, id_nodo_origen, id_proceso_origen);
+            printf("R: #Testigo enviado por el receptor desde nodo: %d, al nodo: %d con proceso %d  \n", mi_id, id_nodo_origen, id_proceso_origen);
             fflush(stdout);
         }
         else
@@ -370,7 +370,7 @@ void *proceso_main(int tipo_proceso)
             if (vector_peticiones[id_nodo_sig][id_proceso_sig] > vector_atendidas[id_nodo_sig][id_proceso_sig])
             {
                 printf("P%d: atiendo a la peticion en cola del nodo: %d, proceso: %d\n", tipo_proceso, id_nodo_sig, id_proceso_sig);
-                int id_cola_sig = cola_entrada(id_nodo_sig);
+                int id_cola_sig = cola_distribucion(id_nodo_sig);
                 int tipo_proceso_sig = id_proceso_sig * 10 + 1;
                 Testigo.mtype = tipo_proceso_sig;
                 Testigo.atendidas_testigo[mi_id][tipo_proceso] = mi_peticion;
@@ -387,7 +387,7 @@ void *proceso_main(int tipo_proceso)
                 sem_wait(&sem_testigo);
                 testigo = 0;
                 sem_post(&sem_testigo);
-                printf("P%d: #Testigo enviado por el principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n", tipo_proceso, mi_id, tipo_proceso, id_nodo_sig, id_proceso_sig);
+                printf("P%d: #Testigo enviado por el proceso principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n", tipo_proceso, mi_id, tipo_proceso, id_nodo_sig, id_proceso_sig);
                 flag_cola = 0;
             }
         }
