@@ -93,6 +93,7 @@ Queue cola_peticiones;
 
 sem_t sem_testigo, sem_dentro, sem_vector_pet, sem_vector_aten, sem_flag_cola, sem_id_nodo_sig, sem_id_proceso_sig;
 sem_t sem_inicial;
+int coger_testigo = 0;
 
 int id_cola_distribucion, id_cola_entrada;
 int mi_id;
@@ -113,8 +114,6 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
 
     num_nodos = atoi(argv[2]);
     int n_procesos = atoi(argv[3]);
-
-    struct Testigo Testigo;
 
     pid_t pid_receptor;
 
@@ -150,23 +149,7 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
             printf("error creando proceso\n");
         }
     }
-    if (mi_id == 0)
-    {
-        printf("pid proceso [0]: %d \n", pid_procesos[0]);
-        Testigo.mtype = pid_procesos[0];
-        Testigo.IDNodoOrigen = mi_id;
-        Testigo.atendidas_testigo[mi_id][0] = 0;
 
-        id_cola_distribucion = cola_distribucion(mi_id);
-        int estado = msgsnd(id_cola_distribucion, &Testigo, sizeof(struct Testigo) - sizeof(long), 0);
-
-        if (estado == -1)
-        {
-            perror("msgsnd testigo inicial");
-            exit(EXIT_FAILURE);
-        }
-        printf("Testigo inicial enviado\n");
-    }
     int opcion;
     char cadena[10];
 
@@ -190,12 +173,12 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
             {
                 perror("Error eliminando la cola");
             }
-            exit(EXIT_SUCCESS);
+
             for (int i = 0; i < n_procesos; i++)
             {
                 kill(pid_procesos[i], SIGKILL);
             }
-
+            exit(EXIT_SUCCESS);
             break;
         default:
             printf("\nOpción no válida\n");
@@ -287,6 +270,26 @@ int proceso_main(int tipo_proceso)
     struct PeticionTestigo PeticionTestigo;
 
     int pid = getpid();
+
+    if (mi_id == 0)
+    {
+        printf("P%d c1\n", pid);
+        sem_wait(&sem_inicial);
+        printf("P:%d c2 %d \n", pid, coger_testigo);
+        if (coger_testigo == 0)
+        {
+            printf("P%d: c2.5 coger test%d\n", pid, coger_testigo);
+            coger_testigo = coger_testigo + 1;
+            printf("P%d: c3 %d\n", pid, coger_testigo);
+            sem_wait(&sem_testigo);
+            printf("P%d: c4\n", pid);
+            testigo = pid;
+            printf("P%d: c5 coger test%d\n", pid, coger_testigo);
+
+            sem_post(&sem_testigo);
+        }
+        sem_post(&sem_inicial);
+    }
 
     printf("P%d: mi testigo es %d \n", pid, testigo);
     while (1)
