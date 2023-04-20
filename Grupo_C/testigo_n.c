@@ -14,8 +14,8 @@
 
 int cola_entrada(int id);
 int cola_distribucion(int id);
-void *proc_receptor(void *);
-void *proceso_main(int tipo_proceso);
+int proc_receptor();
+int proceso_main(int tipo_proceso, int testigo_inicial);
 
 struct Control
 {
@@ -26,7 +26,7 @@ struct Testigo
 {
     long mtype;
     int IDNodoOrigen;
-    int atendidas_testigo[10][5];
+    int atendidas_testigo[100][20];
 };
 
 struct PeticionTestigo
@@ -42,9 +42,9 @@ sem_t sem_testigo, sem_dentro, sem_vector_pet, sem_vector_aten, sem_flag_cola, s
 int id_cola_distribucion, id_cola_entrada;
 int mi_id;
 int id_nodo_sig = 0, id_proceso_sig = 0, flag_cola = 0, num_nodos;
-int vector_peticiones[100][5] = {0}, vector_atendidas[100][5] = {0}, dentro = 0, testigo = 0;
+int vector_peticiones[100][20] = {0}, vector_atendidas[100][20] = {0}, dentro = 0, testigo = 0;
 
-int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el numero de nodos
+int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el numero de nodos y argv[3] es el numero de procesos
 {
 
     sem_init(&sem_testigo, 0, 1);
@@ -56,11 +56,13 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
     sem_init(&sem_id_proceso_sig, 0, 1);
 
     num_nodos = atoi(argv[2]);
+    int n_procesos = atoi(argv[3]);
 
     struct Testigo Testigo;
     struct Control Control;
 
     pthread_t receptor;
+    pid_t pid_receptor;
 
     mi_id = atoi(argv[1]);
 
@@ -68,10 +70,37 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
     id_cola_distribucion = cola_distribucion(mi_id);
 
     pthread_create(&receptor, NULL, proc_receptor, NULL);
-
-    for (int i = 1; i < 6; i++)
+    pid_receptor = fork();
+    if (pid_receptor == 0)
     {
-        pthread_create(&receptor, NULL, (void *(*)(void *))proceso_main, (void *)i);
+        proc_receptor();
+    }
+    else
+    {
+        printf("error creando proceso receptor\n");
+    }
+
+    pid_t pid_procesos[5];
+
+    for (int i = 0; i < n_procesos; i++)
+    {
+        pid_procesos[i] = fork();
+        if (pid_procesos[i] == 0)
+        {
+            if (i == 0 && mi_id == 0)
+            {
+                proceso_main((i % 5) + 1, 1);
+            }
+            else
+            {
+                proceso_main((i % 5) + 1, 0);
+            }
+            printf("Proceso con pid %d creado y del tipo %d \n", getpid(), (i % 5) + 1);
+        }
+        else
+        {
+            printf("error creando proceso\n");
+        }
     }
 
     int opcion, estado;
@@ -80,75 +109,14 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
     while (1)
     {
 
-        printf("\n1.Pedir testigo");
-        printf("\n2.Salir.\n");
+        printf("\n99.Salir y eliminar colas.\n");
         fflush(stdout);
 
         fgets(cadena, 10, stdin);
         opcion = atoi(cadena);
         switch (opcion)
         {
-
-        case 1:
-            printf("\nSeleccione proceso para pedir testigo: ");
-            fgets(cadena, 10, stdin);
-            opcion = atoi(cadena);
-            switch (opcion)
-            {
-            case 1:
-                Control.mtype = 15;
-                estado = msgsnd(id_cola_distribucion, &Control, sizeof(struct Control) - sizeof(long), 0);
-                if (estado == -1)
-                {
-                    printf("msgsnd enviando orden control %d\n", opcion);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case 2:
-                Control.mtype = 25;
-                estado = msgsnd(id_cola_distribucion, &Control, sizeof(struct Control) - sizeof(long), 0);
-                if (estado == -1)
-                {
-                    printf("msgsnd enviando orden control %d\n", opcion);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case 3:
-                Control.mtype = 35;
-                estado = msgsnd(id_cola_distribucion, &Control, sizeof(struct Control) - sizeof(long), 0);
-                if (estado == -1)
-                {
-                    printf("msgsnd enviando orden control %d\n", opcion);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case 4:
-                Control.mtype = 45;
-                estado = msgsnd(id_cola_distribucion, &Control, sizeof(struct Control) - sizeof(long), 0);
-                if (estado == -1)
-                {
-                    printf("msgsnd enviando orden control %d\n", opcion);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case 5:
-
-                Control.mtype = 55;
-                estado = msgsnd(id_cola_distribucion, &Control, sizeof(struct Control) - sizeof(long), 0);
-                if (estado == -1)
-                {
-                    printf("msgsnd enviando orden control %d\n", opcion);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            default:
-                printf("\nOpción no válida\n");
-                break;
-            }
-
-            break;
-
-        case 2:
+        case 99:
             printf("Saliendo...\n");
             if (msgctl(id_cola_distribucion, IPC_RMID, NULL) == -1)
             {
@@ -167,7 +135,7 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
     }
 }
 
-void *proc_receptor(void *)
+int proc_receptor()
 {
     int id_nodo_origen = 0, num_peticion_origen = 0, estado, id_proceso_origen;
     struct Testigo Testigo;
@@ -204,7 +172,7 @@ void *proc_receptor(void *)
             flag_cola = 0;
             sem_post(&sem_flag_cola);
             int id_cola_otro = cola_distribucion(id_nodo_origen);
-            Testigo.mtype = id_proceso_origen * 10 + 1;
+            Testigo.mtype = id_proceso_origen;
 
             for (int i = 0; i < 5; i++)
             {
@@ -250,7 +218,7 @@ void *proc_receptor(void *)
     }
 }
 
-void *proceso_main(int tipo_proceso)
+int proceso_main(int tipo_proceso, int testigo_inicial)
 {
 
     int mi_peticion = 0;
@@ -258,41 +226,8 @@ void *proceso_main(int tipo_proceso)
     struct Testigo Testigo;
     struct Control Control;
     struct PeticionTestigo PeticionTestigo;
-    int ntype_testigo, ntype_control;
 
-    switch (tipo_proceso)
-    {
-    case 1:
-        if (mi_id == 0)
-        {
-            sem_wait(&sem_testigo);
-            testigo = 1;
-            sem_post(&sem_testigo);
-        }
-        ntype_testigo = 11;
-        ntype_control = 15;
-        break;
-    case 2:
-        ntype_testigo = 21;
-        ntype_control = 25;
-        break;
-    case 3:
-        ntype_testigo = 31;
-        ntype_control = 35;
-        break;
-    case 4:
-        ntype_testigo = 41;
-        ntype_control = 45;
-        break;
-    case 5:
-        ntype_testigo = 51;
-        ntype_control = 55;
-        break;
-    default:
-        printf("Error en el tipo de proceso");
-        break;
-    }
-
+    int pid = getpid();
     // printf("P%d : y mi testigo es %d \n", tipo_proceso, testigo);
 
     while (1)
@@ -304,17 +239,14 @@ void *proceso_main(int tipo_proceso)
 
         } */
 
-        estado = msgrcv(id_cola_distribucion, &Control, sizeof(struct Control) - sizeof(long), ntype_control, 0);
-        if (estado == -1)
-        {
-            printf("msgrcv recibiendo la orden de pedir testigo %d\n", tipo_proceso);
-            exit(EXIT_FAILURE);
-        }
-        printf("P%d: Pidiendo testigo\n", tipo_proceso);
+        srand(time(NULL));
+        int tiempo = rand() % 10 + 5; // Genera un número aleatorio entre
+        sleep(tiempo);
 
+        printf("Pido testigo en proceso %d \n", pid);
         // sem_wait(&sem_testigo);
         // printf("Soy el proceso %d y mi testigo es %d \n", tipo_proceso, testigo);
-        if (testigo != tipo_proceso)
+        if (testigo != pid)
         {
             // sem_post(&sem_testigo);
             mi_peticion = mi_peticion + 1;
@@ -329,65 +261,64 @@ void *proceso_main(int tipo_proceso)
                 PeticionTestigo.mtype = 2;
                 PeticionTestigo.IDNodoOrigen = mi_id;
                 PeticionTestigo.numero_peticion = mi_peticion;
-                PeticionTestigo.IDProcesoOrigen = tipo_proceso;
+                PeticionTestigo.IDProcesoOrigen = pid;
                 estado = msgsnd(id_cola_otro, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 0);
                 if (estado == -1)
                 {
-                    printf("msgsnd buscando testigo en proceso %d\n", tipo_proceso);
+                    printf("msgsnd buscando testigo en proceso %d\n", pid);
                     exit(EXIT_FAILURE);
                 }
-                printf("P%d :Peticion enviada al nodo: %d con nº: %d desde el proceso %d \n", tipo_proceso, i, mi_peticion, tipo_proceso);
+                printf("P%d :Peticion enviada al nodo: %d con nº: %d \n", pid, i, mi_peticion);
             }
-            printf("P%d: Esperando testigo\n", tipo_proceso);
-            estado = msgrcv(id_cola_distribucion, &Testigo, sizeof(struct Testigo) - sizeof(long), ntype_testigo, 0);
+            printf("P%d: Esperando testigo\n", pid);
+            estado = msgrcv(id_cola_distribucion, &Testigo, sizeof(struct Testigo) - sizeof(long), pid, 0);
 
             if (estado == -1)
             {
-                printf("msgrcv buscando testigo en proceso %d\n", tipo_proceso);
+                printf("msgrcv buscando testigo en proceso %d\n", pid);
                 exit(EXIT_FAILURE);
             }
-            printf("P%d: #He recibido el testigo\n", tipo_proceso);
+            printf("P%d: #He recibido el testigo\n", pid);
             sem_wait(&sem_testigo);
-            testigo = tipo_proceso;
+            testigo = pid;
             sem_post(&sem_testigo);
         }
         // sem_post(&sem_testigo);
         sem_wait(&sem_dentro);
         dentro = 1;
-        printf("P%d: #Entrando en la SC\n", tipo_proceso);
-        sleep(5); // Simulamos la sección crítica
-        printf("P%d: #Saliendo de la SC\n", tipo_proceso);
+        printf("P%d: #Entrando en la SC\n", pid);
+        sleep(1); // Simulamos la sección crítica
+        printf("P%d: #Saliendo de la SC\n", pid);
         sem_wait(&sem_vector_aten);
-        vector_atendidas[mi_id][tipo_proceso] = mi_peticion;
+        vector_atendidas[mi_id][pid] = mi_peticion;
         sem_post(&sem_vector_aten);
         dentro = 0;
         sem_post(&sem_dentro);
-        printf("P%d: #Fuera de la SC\n", tipo_proceso);
+        printf("P%d: #Fuera de la SC\n", pid);
         sem_wait(&sem_flag_cola);
-        // printf("P%d: flag_cola: %d\n", tipo_proceso, flag_cola);
+        // printf("P%d: flag_cola: %d\n", pid, flag_cola);
         if (flag_cola != 0)
         {
             if (vector_peticiones[id_nodo_sig][id_proceso_sig] > vector_atendidas[id_nodo_sig][id_proceso_sig])
             {
-                printf("P%d: atiendo a la peticion en cola del nodo: %d, proceso: %d\n", tipo_proceso, id_nodo_sig, id_proceso_sig);
+                printf("P%d: atiendo a la peticion en cola del nodo: %d, proceso: %d\n", pid, id_nodo_sig, id_proceso_sig);
                 int id_cola_sig = cola_distribucion(id_nodo_sig);
-                int tipo_proceso_sig = id_proceso_sig * 10 + 1;
-                Testigo.mtype = tipo_proceso_sig;
-                Testigo.atendidas_testigo[mi_id][tipo_proceso] = mi_peticion;
+                Testigo.mtype = pid;
+                Testigo.atendidas_testigo[mi_id][pid] = mi_peticion;
                 Testigo.IDNodoOrigen = mi_id;
                 estado = msgsnd(id_cola_sig, &Testigo, sizeof(struct Testigo) - sizeof(long), 0);
                 time_t now = time(NULL);
-                // printf("P%d: Tiempo actual: %ld.%03ld segundos\n", tipo_proceso, now, (clock() * 1000 / CLOCKS_PER_SEC) % 1000);
+                // printf("P%d: Tiempo actual: %ld.%03ld segundos\n", pid, now, (clock() * 1000 / CLOCKS_PER_SEC) % 1000);
 
                 if (estado == -1)
                 {
-                    printf("msgsnd enviando testigo en proceso %d\n", tipo_proceso);
+                    printf("msgsnd enviando testigo en proceso %d\n", pid);
                     exit(EXIT_FAILURE);
                 }
                 sem_wait(&sem_testigo);
                 testigo = 0;
                 sem_post(&sem_testigo);
-                printf("P%d: #Testigo enviado por el proceso principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n", tipo_proceso, mi_id, tipo_proceso, id_nodo_sig, id_proceso_sig);
+                printf("P%d: #Testigo enviado por el proceso principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n", pid, mi_id, pid, id_nodo_sig, id_proceso_sig);
                 flag_cola = 0;
             }
         }
