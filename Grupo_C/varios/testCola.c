@@ -25,34 +25,26 @@ int cola(int id)
     printf("clave: %d\n", clave);
     return id_cola;
 }
+#define MAX_PROCESOS 10000
 
 #define KEY 0x011000a7
-
 struct Testigo
 {
     long mtype;
     int IDNodoOrigen;
-    int atendidas_testigo[100];
+    int atendidas_testigo[100][MAX_PROCESOS];
 };
 
-int main()
+int main(int argc, char *argv[])
 {
-    int msgid;
+    int msgid = argv[1];
     struct Testigo testigo_send, testigo_recv;
-    key_t key = cola(1);
 
-    // Crear o acceder a la cola de mensajes
-    if ((msgid = msgget(key, IPC_CREAT | 0666)) == -1)
-    {
-        perror("msgget");
-        exit(1);
-    }
     printf("msgid: %d", msgid);
     // Inicializar la estructura Testigo de envío
-    testigo_send.mtype = 1;
+    testigo_send.mtype = argv[2];
     testigo_send.IDNodoOrigen = 1;
-    testigo_send.atendidas_testigo[0] = 5;
-    testigo_send.atendidas_testigo[1] = 10;
+    testigo_send.atendidas_testigo[0][0] = 1;
 
     // Enviar la estructura Testigo
     if (msgsnd(msgid, &testigo_send, sizeof(testigo_send) - sizeof(long), 0) == -1)
