@@ -12,14 +12,14 @@
 
 #define MAX_SIZE 100 // Tamaño máximo de la cola
 #define MAX_PROCESOS 10
-#define MAX_NODOS 4
+#define MAX_NODOS 2
 // tipos de mensajes:11 21 31 41 51 testigo
 //  15 25 35 45 55 pedir testigo en ese proceso
 
 int cola_entrada(int id);
 int cola_distribucion(int id);
 void *proc_receptor(void *);
-void *proceso_main(int tipo_proceso);
+void *proceso_main(int id_proceso);
 
 struct Testigo
 {
@@ -105,14 +105,14 @@ int vector_peticiones[MAX_NODOS][MAX_PROCESOS] = {0}, vector_atendidas[MAX_NODOS
 int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el numero de nodos y argv[3] es el numero de procesos
 {
 
-    sem_init(&sem_testigo, 1, 1);
-    sem_init(&sem_dentro, 1, 1);
-    sem_init(&sem_vector_pet, 1, 1);
-    sem_init(&sem_vector_aten, 1, 1);
-    sem_init(&sem_flag_cola, 1, 1);
-    sem_init(&sem_id_nodo_sig, 1, 1);
-    sem_init(&sem_id_proceso_sig, 1, 1);
-    sem_init(&sem_inicial, 1, 1);
+    sem_init(&sem_testigo, 0, 1);
+    sem_init(&sem_dentro, 0, 1);
+    sem_init(&sem_vector_pet, 0, 1);
+    sem_init(&sem_vector_aten, 0, 1);
+    sem_init(&sem_flag_cola, 0, 1);
+    sem_init(&sem_id_nodo_sig, 0, 1);
+    sem_init(&sem_id_proceso_sig, 0, 1);
+    sem_init(&sem_inicial, 0, 1);
 
     num_nodos = atoi(argv[2]);
     int n_procesos = atoi(argv[3]);
@@ -124,18 +124,14 @@ int main(int argc, char *argv[]) // argv[1] es el id del nodo argv[2] es el nume
 
     pthread_t receptor;
     pthread_create(&receptor, NULL, proc_receptor, NULL);
-    printf("Proceso receptor creado con pid %ld \n", receptor);
-    int pid_receptor = (int)(receptor % MAX_PROCESOS);
-    printf("Proceso receptor creado con pid %d \n", pid_receptor);
 
     pthread_t pid_procesos;
-    for (int i = 0; i < n_procesos; i++)
+    for (int i = 1; i < n_procesos + 1; i++)
     {
         printf("Creando proceso %d \n", i);
         pthread_create(&pid_procesos, NULL, (void *)proceso_main, (void *)i);
-        printf("Proceso %d creado con pid %ld \n", i, pid_procesos);
+        printf("Proceso %d creado  \n", i);
     }
-    printf("Procesos creados con pid %ld \n", pid_procesos);
 
     int opcion;
     char cadena[10];
@@ -175,6 +171,10 @@ void *proc_receptor(void *)
     int id_nodo_origen = 0, num_peticion_origen = 0, estado, id_proceso_origen;
     struct Testigo Testigo;
     struct PeticionTestigo PeticionTestigo;
+    while (isEmpty(&cola_peticiones) != 1)
+    {
+        dequeue(&cola_peticiones);
+    }
     while (1)
     {
         printf("\nR: Esperando petición en la cola %d \n", id_cola_entrada);
@@ -194,7 +194,6 @@ void *proc_receptor(void *)
         id_proceso_origen = PeticionTestigo.IDProcesoOrigen;
 
         printf("R: He recibido una peticion del nodo %d del proceso %d con nº: %d \n", id_nodo_origen, id_proceso_origen, num_peticion_origen);
-        fflush(stdout);
         vector_peticiones[id_nodo_origen][id_proceso_origen] = fmax(vector_peticiones[id_nodo_origen][id_proceso_origen], num_peticion_origen);
         printf("\nR: ||valoro testigo:%d dentro:%d nodo_orig:%d proceso_orig:%d nºpeti:%d nºatend%d\n", testigo, dentro, id_nodo_origen, id_proceso_origen, vector_peticiones[id_nodo_origen][id_proceso_origen], vector_atendidas[id_nodo_origen][id_proceso_origen]);
         sem_wait(&sem_flag_cola);
@@ -237,6 +236,8 @@ void *proc_receptor(void *)
 
                 enqueue(&cola_peticiones, PeticionTestigo);
                 printf("R: //Peticion encolada en el nodo %d del proceso %d con nº: %d \n", id_nodo_origen, id_proceso_origen, num_peticion_origen);
+                // PeticionTestigo = dequeue(&cola_peticiones);
+                // printf("R: //Peticion desencolada en el nodo %d del proceso %d con nº: %d \n", PeticionTestigo.IDNodoOrigen, PeticionTestigo.IDProcesoOrigen, PeticionTestigo.numero_peticion);
                 printf("Is empty: %d", isEmpty(&cola_peticiones));
 
                 // printf("R: //id_nodo_sig: %d id_proceso_sig: %d\n", id_nodo_sig, id_proceso_sig);
@@ -246,15 +247,13 @@ void *proc_receptor(void *)
     }
 }
 
-void *proceso_main(int tipo_proceso)
+void *proceso_main(int id_proceso)
 {
 
     int mi_peticion = 0;
     int estado;
     struct Testigo Testigo;
     struct PeticionTestigo PeticionTestigo;
-    pthread_t tid = pthread_self();
-    int pid = (int)(tid % MAX_PROCESOS);
     sem_wait(&sem_inicial);
     if (mi_id == 0)
     {
@@ -263,15 +262,17 @@ void *proceso_main(int tipo_proceso)
         {
             coger_testigo = coger_testigo + 1;
             sem_wait(&sem_testigo);
-            testigo = pid;
+            testigo = id_proceso;
             sem_post(&sem_testigo);
+            printf("P%d: He cogido el testigo inicial \n", id_proceso);
         }
     }
     sem_post(&sem_inicial);
-
-    printf("P%d: mi testigo es %d \n", pid, testigo);
+    printf("c4\n");
     while (1)
     {
+        printf("P%d: mi testigo es %d \n", id_proceso, testigo);
+
         /* while (testigo==1)
         {
             sleep(5);
@@ -284,10 +285,10 @@ void *proceso_main(int tipo_proceso)
         sleep(tiempo);
 
         // sem_wait(&sem_testigo);
-        // printf("Soy el proceso %d y mi testigo es %d \n", tipo_proceso, testigo);
-        if (testigo != pid)
+        printf("Soy el proceso %d y mi testigo es %d \n", id_proceso, testigo);
+        if (testigo != id_proceso)
         {
-            printf("P%d: Pido testigo\n", pid);
+            printf("P%d: Pido testigo\n", id_proceso);
             // sem_post(&sem_testigo);
             mi_peticion = mi_peticion + 1;
 
@@ -301,34 +302,37 @@ void *proceso_main(int tipo_proceso)
                 PeticionTestigo.mtype = 2;
                 PeticionTestigo.IDNodoOrigen = mi_id;
                 PeticionTestigo.numero_peticion = mi_peticion;
-                PeticionTestigo.IDProcesoOrigen = pid;
+                PeticionTestigo.IDProcesoOrigen = id_proceso;
                 estado = msgsnd(id_cola_otro, &PeticionTestigo, sizeof(struct PeticionTestigo) - sizeof(long), 0);
                 if (estado == -1)
                 {
-                    printf("msgsnd buscando testigo en proceso %d\n", pid);
+                    printf("msgsnd buscando testigo en proceso %d\n", id_proceso);
                     exit(EXIT_FAILURE);
                 }
-                printf("P%d :Peticion enviada al nodo: %d con nº: %d \n", pid, i, mi_peticion);
+                printf("P%d :Peticion enviada al nodo: %d con nº: %d \n", id_proceso, i, mi_peticion);
             }
-            printf("P%d: Esperando testigo en cola %d \n", pid, id_cola_distribucion);
-            estado = msgrcv(id_cola_distribucion, &Testigo, sizeof(struct Testigo) - sizeof(long), pid, 0);
+            printf("P%d: Esperando testigo en cola %d \n", id_proceso, id_cola_distribucion);
+            estado = msgrcv(id_cola_distribucion, &Testigo, sizeof(struct Testigo) - sizeof(long), id_proceso, 0);
 
             if (estado == -1)
             {
-                printf("msgrcv buscando testigo en proceso %d\n", pid);
+                printf("msgrcv buscando testigo en proceso %d\n", id_proceso);
                 exit(EXIT_FAILURE);
             }
-            printf("P%d: #He recibido el testigo\n", pid);
+            printf("P%d: #He recibido el testigo\n", id_proceso);
             sem_wait(&sem_testigo);
-            testigo = pid;
+            testigo = id_proceso;
             sem_post(&sem_testigo);
+            printf("P%d: #Mi testigo debe de ser mi id %d \n", id_proceso, testigo);
         }
         // sem_post(&sem_testigo);
+        printf("P%d: #Mi testigo debe de ser mi id %d \n", id_proceso, testigo);
+
         sem_wait(&sem_dentro);
         dentro = 1;
-        printf("P%d: #Entrando en la SC\n", pid);
+        printf("P%d: #Entrando en la SC\n", id_proceso);
         sleep(1); // Simulamos la sección crítica
-        printf("P%d: #Saliendo de la SC\n", pid);
+        printf("P%d: #Saliendo de la SC\n", id_proceso);
         sem_wait(&sem_vector_aten);
         for (int l = 0; l < num_nodos; l++)
         {
@@ -338,24 +342,26 @@ void *proceso_main(int tipo_proceso)
             }
         }
         sem_post(&sem_vector_aten);
-        printf("P%d: #Vector atendidas actualizado\n", pid);
+        printf("P%d: #Vector atendidas actualizado\n", id_proceso);
         dentro = 0;
         sem_post(&sem_dentro);
-        printf("P%d: #Fuera de la SC\n", pid);
+        printf("P%d: #Fuera de la SC\n", id_proceso);
         sem_wait(&sem_flag_cola);
         // printf("P%d: flag_cola: %d\n", pid, flag_cola);
         if (isEmpty(&cola_peticiones) == 0)
         {
-            printf("P%d: Desencolando peticion\n", pid);
+            printf("P%d: Desencolando peticion\n", id_proceso);
             PeticionTestigo = dequeue(&cola_peticiones);
+            printf("P%d: Peticion desencolada\n", id_proceso);
+
             int id_nodo_sig = PeticionTestigo.IDNodoOrigen;
             int id_proceso_sig = PeticionTestigo.IDProcesoOrigen;
             int numero_peticion_sig = PeticionTestigo.numero_peticion;
             if (vector_peticiones[id_nodo_sig][id_proceso_sig] > vector_atendidas[id_nodo_sig][id_proceso_sig])
             {
-                printf("P%d: atiendo a la peticion en cola del nodo: %d, proceso: %d , con peticion nº:%d\n", pid, id_nodo_sig, id_proceso_sig, numero_peticion_sig);
+                printf("P%d: atiendo a la peticion en cola del nodo: %d, proceso: %d , con peticion nº:%d\n", id_proceso, id_nodo_sig, id_proceso_sig, numero_peticion_sig);
                 int id_cola_sig = cola_distribucion(id_nodo_sig);
-                Testigo.mtype = pid;
+                Testigo.mtype = id_proceso_sig;
                 Testigo.atendidas_testigo[id_nodo_sig][id_proceso_sig] = PeticionTestigo.numero_peticion;
                 Testigo.IDNodoOrigen = mi_id;
                 estado = msgsnd(id_cola_sig, &Testigo, sizeof(struct Testigo) - sizeof(long), 0);
@@ -364,21 +370,27 @@ void *proceso_main(int tipo_proceso)
 
                 if (estado == -1)
                 {
-                    printf("msgsnd enviando testigo en proceso %d\n", pid);
+                    printf("msgsnd enviando testigo en proceso %d\n", id_proceso);
                     exit(EXIT_FAILURE);
                 }
                 sem_wait(&sem_testigo);
                 testigo = 0;
                 sem_post(&sem_testigo);
-                printf("P%d: #Testigo enviado peticion n: %d por el proceso principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n", numero_peticion_sig, pid, mi_id, pid, id_nodo_sig, id_proceso_sig);
+                printf("P%d: #Testigo enviado peticion n: %d por el proceso principal desde el nodo: %d desde el proceso %d al nodo: %d  proceso %d\n", id_proceso, numero_peticion_sig, mi_id, id_proceso, id_nodo_sig, id_proceso_sig);
+            }
+            else
+            {
+                printf("P%d: No atiendo a la peticion en cola del nodo: %d, proceso: %d , con peticion nº:%d\n", id_proceso, id_nodo_sig, id_proceso_sig, numero_peticion_sig);
             }
         }
         else
         {
-            printf("P%d: No hay peticiones en cola\n", pid);
+            printf("P%d: No hay peticiones en cola\n", id_proceso);
         }
         sem_post(&sem_flag_cola);
+        printf("c1\n");
     }
+    printf("c2\n");
 }
 
 int cola_entrada(int id)
