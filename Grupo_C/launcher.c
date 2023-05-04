@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     }
 
 
-        // Bucle para crear procesos y ejecutar el programa "nodo".
+    // Bucle para crear procesos y ejecutar el programa "nodo".
     for (int j = nodo_minimo; j <= nodo_maximo; j++) {
         pid_t pid = fork();
 
