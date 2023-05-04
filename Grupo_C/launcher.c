@@ -5,7 +5,7 @@
 
 
 #define MAX_LINE_LENGTH 1000
-#define MAX_PROCESOS 100
+#define MAX_PROCESOS 1000
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -92,8 +92,16 @@ int main(int argc, char *argv[]) {
             char nodo_str[MAX_LINE_LENGTH];
             snprintf(nodo_str, MAX_LINE_LENGTH, "%d", j);
 
+            char nodo_min_str[MAX_LINE_LENGTH];
+            snprintf(nodo_min_str, MAX_LINE_LENGTH, "%d", nodo_minimo);
+
+            // Convertir nodo_max a una cadena de caracteres.
+            char nodo_max_str[MAX_LINE_LENGTH];
+            snprintf(nodo_max_str, MAX_LINE_LENGTH, "%d", nodo_maximo);
+
+
             // Ejecutar el programa "nodo" utilizando execl().
-            execl("./nodo", "nodo", nodo_str, instr_procesos[j - nodo_minimo], tiempos_procesos[j - nodo_minimo], NULL);
+            execl("./nodo", "nodo", nodo_min_str, nodo_max_str, nodo_str, instr_procesos[j - nodo_minimo], tiempos_procesos[j - nodo_minimo], NULL);
 
             // Si llegamos hasta aquí, significa que hubo un error al ejecutar execl().
             printf("Error al ejecutar el programa \"nodo\" para el nodo %d.\n", j);
