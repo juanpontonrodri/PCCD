@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+
 sem_t sem;
 
 //cabecera:Num_nodos,Num_procesos,Tipo_proceso,PID,Tiempo_inicio,Tiempo_fin,Diferencia
@@ -21,7 +22,7 @@ sem_t sem;
 int pos = 0; // variable para la primera posición disponible en el array
 
 
-
+//copiar entera
 char* generar_registro(char* pid, int tipo_proceso, struct timeval tiempo1, struct timeval tiempo2) {
     // Crear un array para almacenar la cadena de registro
     char registro_str[MAX_STR_LEN * 4];
@@ -77,19 +78,28 @@ void* generar_registros(void* arg) {
     int hilo_num = *(int*)pthread_self();
 
     int tipo_proceso = rand() % 4 + 1;
+
     struct timeval tiempo1, tiempo2;
     gettimeofday(&tiempo1, NULL);
+    //Seccion critica
     usleep(rand() % 1000);
+    //fuera seccion critac
     gettimeofday(&tiempo2, NULL);
     char hilo_str[20];
     snprintf(hilo_str, sizeof(hilo_str), "%d", hilo_num);
 
     // Generar cadena de registro
     char* registro = generar_registro(hilo_str, tipo_proceso, tiempo1, tiempo2);
+    //ignorar la siguiente
     sem_wait(&sem); // esperar a que el semáforo esté en verde
+    //esta es la buena
     registros[pos] = registro; // agregar registro en la primera posición disponible
-    printf("Se generó el registro %d\n %s\n", pos, registro);
     pos++; // incrementar la variable de posición
+
+
+    printf("Se generó el registro %d\n %s\n", pos, registro);
+
+    
     sem_post(&sem); // poner el semáforo en verde
     // Si se llegó al límite del array, salir del bucle
     if (pos == MAX_NUM_REGS) {
@@ -102,6 +112,8 @@ void* generar_registros(void* arg) {
 
 
 int main() {
+
+    //CREAR ESTO
     // Crear un array de strings de tamaño MAX_NUM_REGS
     char** registros = malloc(sizeof(char*) * MAX_NUM_REGS);
 
