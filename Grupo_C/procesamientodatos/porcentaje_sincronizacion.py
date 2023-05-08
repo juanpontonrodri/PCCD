@@ -25,8 +25,10 @@ with open(input_file, 'r') as f:
             data[key] = time
 
 with open(output_file, 'w', newline='') as f:
-    writer = csv.writer(f)
-    writer.writerow(['Número de Nodos', 'Número de Procesos', 'Tiempo de Procesamiento'])
+    writer = csv.writer(f, delimiter=';')
+    writer.writerow(['Número de Nodos', 'Número de Procesos', 'Tiempo Original', 'Tiempo Corregido', 'Porcentaje'])
     for (nodes, processes), time in data.items():
+        original_time = time
         corrected_time = time - 400000 * int(processes)
-        writer.writerow([nodes, processes, corrected_time])
+        percentage = corrected_time / original_time
+        writer.writerow([nodes, processes, original_time, corrected_time, f'{percentage:.4f}'.replace('.', ',')])

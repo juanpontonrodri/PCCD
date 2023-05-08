@@ -1,5 +1,5 @@
-Número de Nodos,Número de Procesos,Tiempo de Procesamiento
-4,20,24441137
-10,20,74887725
-15,20,116967240
-20,20,158919167
+Número de Nodos;Número de Procesos;Tiempo Original;Tiempo Corregido;Porcentaje
+4;20;32441137;24441137;0,7534
+10;20;82887725;74887725;0,9035
+15;20;124967240;116967240;0,9360
+20;20;166919167;158919167;0,9521
